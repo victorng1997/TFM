@@ -1,0 +1,1466 @@
+---
+title: "Analisis"
+output:
+  html_document:
+    toc: yes
+    toc_depth: '5'
+    toc_float: true
+    df_print: paged
+  pdf_document:
+    toc: yes
+    toc_depth: 5
+    highlight: tango
+linestretch: 1.3
+classoption: fleqn
+header-includes:
+- \setlength{\mathindent}{0pt}
+- \setlength\parindent{0pt}
+---
+
+
+```{r include=FALSE}
+ody_plot_violindotbox2 <- function (data, x, y, no_violin = FALSE, compare = FALSE, p_adj = "fdr", 
+          brackets_pos = 1.05, ...) 
+{
+  rlang::check_installed(c("ggpubr", "gghalves"))
+  if (!is.factor(data[[x]])) {
+    data[[x]] <- factor(data[[x]])
+  }
+  if (no_violin) {
+    p <- ggplot2::ggplot(data, ggplot2::aes(.data[[x]], .data[[y]])) + 
+      ggplot2::geom_boxplot(outliers = FALSE) + ggplot2::geom_jitter(alpha = 0.5, 
+                                                                     width = 0.2)
+  }
+  else {
+    p <- ggplot2::ggplot(data, ggplot2::aes(.data[[x]], .data[[y]])) + 
+      gghalves::geom_half_violin(side = "r") + ggplot2::geom_boxplot(width = 0.1, 
+                                                                     outliers = FALSE,fill=c("#5B88A8", "#48B080")) + gghalves::geom_half_point(side = "l", 
+                                                                                                                                  alpha = 0.5) + theme_classic() + scale_fill_manual(c("#5B88A8", "#48B080"))
+  }
+  if (compare) {
+    stats <- ggpubr::compare_means(formula(glue::glue("{y} ~ {x}")), 
+                                   data = data, p.adjust.method = p_adj)
+    y_pos <- max(dplyr::pull(data, .data[[y]]), na.rm = TRUE) * 
+      brackets_pos
+    p <- p + ggpubr::geom_bracket(data = stats, ggplot2::aes(xmin = .data[["group1"]], 
+                                                             xmax = .data[["group2"]], label = gtsummary::style_pvalue(.data[["p.adj"]])), 
+                                  y.position = y_pos, ...)
+  }
+  data <- dplyr::select(data, .data[[x]], .data[[y]])
+  attr(p, "data") <- data
+  p
+}
+```
+
+```{r include=FALSE}
+if (!(require(knitr))){
+  install.packages("knitr")
+}
+if (!(require(forestmodel))){
+  install.packages("forestmodel")
+}
+if (!(require(ggsci))){
+  install.packages("ggsci")
+}
+if (!(require(mice))){
+  install.packages("mice")
+}
+if (!(require(questionr))){
+  install.packages("questionr")
+}
+if (!(require(survival))){
+  install.packages("survival")
+}
+if (!(require(survminer))){
+  install.packages("survminer")
+}
+if (!(require(data.table))){
+  install.packages("data.table")
+}
+if (!(require(ggsurvfit))){
+  install.packages("ggsurvfit")
+}
+if (!(require(clustMixType))){
+  install.packages("clustMixType")
+}
+if (!(require(clustertend))){
+  install.packages("clustertend")
+}
+if (!(require(cluster))){
+  install.packages("cluster")
+}
+if (!(require(factoextra))){
+  install.packages("factoextra")
+}
+if (!(require(Rtsne))){
+  install.packages("Rtsne")
+}
+if (!(require(clusterSim))){
+  install.packages("clusterSim")
+}
+if (!(require(NbClust))){
+  install.packages("NbClust")
+}
+if (!(require(kmed))){
+  install.packages("kmed")
+}
+if (!(require(kamila))){
+  install.packages("kamila")
+}
+if (!(require(clValid))){
+  install.packages("clValid")
+}
+if (!(require(patchwork))){
+  install.packages("patchwork")
+}
+if (!(require(dbscan))){
+  install.packages("dbscan")
+}
+if (!(require(mclust))){
+  install.packages("mclust")
+}
+if (!(require(viridis))){
+  install.packages("viridis")
+}
+if (!(require(ggpubr))){
+  install.packages("ggpubr")
+}
+if (!(require(FactoMineR))){
+  install.packages("FactoMineR")
+}
+if (!(require(labelled))){
+  install.packages("labelled")
+}
+if (!(require(devtools))){
+  install.packages("devtools")
+}
+if (!(require(odytools))){
+  devtools::install_github("VHIO-Odyssey/odytools")
+}
+if (!(require(kableExtra))){
+  install.packages("kableExtra")
+}
+if (!(require(gt))){
+  install.packages("gt")
+}
+if (!(require(gtsummary))){
+  install.packages("gtsummary")
+}
+if (!(require(haven))){
+  install.packages("haven")
+}
+if (!(require(DataExplorer))){
+  install.packages("DataExplorer")
+}
+
+
+setwd("C:/Users/victornavarro/Desktop/TFM")
+
+`%notin%` <- Negate(`%in%`)
+
+data <- read_sav("Sex clust var 131124 SD ECS SCL TCI_DEF N97.sav")
+
+
+variables_cat <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","PANOC","PAECC","TIHIJ","PAENF","PAALC","PASUS","PASUS01","PASUS02","PASUS03","PASUS04","PASUS05","PASUS06","PACAU","studies","employed","tabaco")
+
+original_labels <- var_label(data[,variables_cat])
+data$PAORG2 <- factor(ifelse(data$PAORG == 1, "1",ifelse(data$PAORG > 2,">2","2")))
+
+data[,variables_cat] <- sapply(data[,variables_cat],to_factor)
+#DataExplorer::create_report(data)
+
+
+var_label(data[,variables_cat]) <- original_labels
+
+covariates <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","PAECC","TIHIJ","PAENF","PAALC","PASUS","PASUS01","PASUS02","PASUS03","PASUS04","PASUS05","PASUS06","PACAU","studies","employed","tabaco","PAORG", "NSTOTAL", "HATOTAL", "RDTOTAL", "PSTOTAL", "SDTOTAL", "CTOTAL", "STTOTAL", "VALID", "Inicio", "evoluc", "PAAPRO", "PAANOS", "PAHIJ", "PAEDA")
+
+data_full <- data
+```
+
+
+
+
+\newpage
+
+# Descriptive Analysis
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+covariates <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","PAECC","TIHIJ","PAENF","PAALC","PASUS","PASUS01","PASUS02","PASUS03","PASUS04","PASUS05","PASUS06","PACAU","studies","employed","tabaco","PAORG", "NSTOTAL", "HATOTAL", "RDTOTAL", "PSTOTAL", "SDTOTAL", "CTOTAL", "STTOTAL", "VALID", "Inicio", "evoluc", "PAAPRO", "PAANOS", "PAHIJ", "PAEDA")
+
+data |>
+  dplyr::select(covariates) |>
+  tbl_summary(
+    type = list(all_continuous() ~ "continuous2",
+                all_dichotomous() ~ "categorical"),
+    statistic = all_continuous() ~ c(
+      "{mean} ({sd})",
+      "{median} ({p25}, {p75})",
+      "{min}, {max}"
+    ),label = as.list(var_label(data)) ,
+     missing_text = "Missing"
+  )  |>
+  bold_labels() |>
+  as_gt() |>
+  tab_style(
+    style = cell_borders(sides = "bottom", weight = px(1)),
+    locations = cells_body(rows = row_type == "label")
+  )
+
+data[,covariates] <- data[,covariates] %>%
+  mutate(across(where(is.character), as.factor))
+```
+
+
+
+\newpage
+
+
+
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+data$PAORG2 <- factor(ifelse(data$PAORG == 1, "1",ifelse(data$PAORG > 2,">2","2")))
+
+covariates <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","TIHIJ","PASUS","studies","employed","tabaco","PAORG2", "NSTOTAL", "HATOTAL", "RDTOTAL", "PSTOTAL", "SDTOTAL", "CTOTAL", "STTOTAL", "Inicio", "PAAPRO", "PAANOS")
+
+covariates_TCI <- c( "NSTOTAL", "HATOTAL", "RDTOTAL", "PSTOTAL", "SDTOTAL", "CTOTAL", "STTOTAL")
+
+set.seed(123)
+
+indices_binary <- which(sapply(data[,covariates], function(x) {
+  length(unique(x)) == 2 && (is.numeric(x) || is.factor(x))
+}))
+
+indices_categorical <- which(sapply(data[,covariates], function(x) {
+  (is.factor(x) || is.character(x)) && !(length(unique(x)) == 2)
+}))
+
+indices_numeric <- as.integer(which(sapply(data[,covariates], is.numeric)))
+
+data[,covariates[indices_numeric]] <- scale(data[,covariates[indices_numeric]])
+
+
+results <- lapply(2:6, function(k) kproto(data[,covariates], k = k))
+
+
+huang_dist <- kmed::distmix(data[,covariates],
+              method="huang",
+              idnum=indices_numeric,
+              idbin= indices_binary,
+              idcat=indices_categorical)
+
+```
+
+# Hopkins Statistic
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+d <- as.data.frame(lapply(data[,covariates], function(x) if(is.factor(x)) as.numeric(x) else x))
+
+numerical_data <- dplyr::select_if(data[,covariates], is.numeric)
+categorical_data <- dplyr::select_if(data[,covariates], is.factor)
+mca_res <- MCA(categorical_data, graph = FALSE)
+mca_coords <- mca_res$ind$coord  # MCA coordinates
+full_data <- cbind(mca_coords, numerical_data)
+
+hopkins_stat1 <- clustertend::hopkins(d, n = nrow(data) - 1)
+hopkins_stat3 <- clustertend::hopkins(numerical_data, n = nrow(data) - 1)
+hopkins_stat2 <- clustertend::hopkins(scale(data[,covariates_TCI]), n = nrow(data) - 1)
+df <- data.frame("HB Mixed"=as.numeric(hopkins_stat3), "HB TCI-R"=as.numeric(hopkins_stat2))
+
+kable(df,"html")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+# Cluster Mixed Data
+
+## K-prototypes
+
+
+```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+
+
+
+silhouette_index <- NA
+avg_silhouette <- vector()
+davies_bouldin <- vector()
+dunn_index <- vector()
+calinski_harabasz <- vector()
+
+
+for (i in 1:5){
+  labels <- results[[i]]$cluster  
+  silhouette_index <- silhouette(labels, huang_dist)
+avg_silhouette[i] <- mean(silhouette_index[, 3])
+
+
+davies_bouldin[i] <- index.DB(
+ huang_dist, cl = labels)$DB
+
+dunn_index[i] <- clValid::dunn(
+ huang_dist, clust = labels
+)
+calinski_harabasz[i] <- fpc::calinhara(
+  x = huang_dist,
+  clustering = labels
+)
+  
+  
+}
+
+
+df <- data.frame("N_clusters"=2:6,
+                 "Silhoutte Score"=avg_silhouette,
+                 "Davies Bouldin"=davies_bouldin,
+                 "Dunn index"=dunn_index,
+                 "Calinski Harabasz"=calinski_harabasz)
+
+colnames(df) <- c("Number of clusters", "Silhoutte Score","Davies Bouldin","Dunn index","Calinski Harabasz")
+rownames(df) <- NULL
+kable(df,"html") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+
+
+
+p1 <- fviz_cluster(
+  list(data = full_data, cluster = results[[1]]$cluster ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+p2 <- fviz_cluster(
+  list(data = full_data, cluster = results[[2]]$cluster ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+p3 <- fviz_cluster(
+  list(data = full_data, cluster = results[[3]]$cluster ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+p4 <- fviz_cluster(
+  list(data = full_data, cluster = results[[4]]$cluster ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+p5 <- fviz_cluster(
+  list(data = full_data, cluster = results[[5]]$cluster ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+
+(p1|p2|p3)/
+  (p4|p5)
+
+```
+
+
+
+
+
+\newpage
+
+
+
+
+## Kamila
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+
+
+
+catDf <- data.frame(apply(data[,covariates[c(indices_binary,indices_categorical)]], 2, factor), stringsAsFactors = TRUE)
+conDf <- data.frame(data[,covariates[indices_numeric]], stringsAsFactors = TRUE)
+
+gower_dist <- daisy(data[,covariates],"gower")
+
+results_kam <- lapply(2:6, function(k) kamila(
+conVar=data[,covariates[indices_numeric]],
+catFactor=data[,covariates[c(indices_binary,indices_categorical)]],
+numClust=k,
+numInit=100))
+
+```
+
+
+```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+
+silhouette_index <- NA
+avg_silhouette <- vector()
+davies_bouldin <- vector()
+dunn_index <- vector()
+calinski_harabasz <- vector()
+
+for (i in 1:5){
+  labels <- results_kam[[i]]$finalMemb
+  silhouette_index <- silhouette(labels, gower_dist)
+avg_silhouette[i] <- mean(silhouette_index[, 3])
+
+
+davies_bouldin[i] <- index.DB(
+ gower_dist, cl = labels)$DB
+
+dunn_index[i] <- clValid::dunn(
+ gower_dist, clust = labels
+)
+calinski_harabasz[i] <- fpc::calinhara(
+  x = gower_dist,
+  clustering = labels
+)
+  
+  
+}
+
+
+df <- data.frame("N_clusters"=2:6,
+                 "Silhoutte Score"=avg_silhouette,
+                 "Davies Bouldin"=davies_bouldin,
+                 "Dunn index"=dunn_index,
+                 "Calinski Harabasz"=calinski_harabasz)
+
+colnames(df) <- c("Number of clusters", "Silhoutte Score","Davies Bouldin","Dunn index","Calinski Harabasz")
+rownames(df) <- NULL
+kable(df,"html") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+
+p1 <- fviz_cluster(
+  list(data = full_data, cluster = results_kam[[1]]$finalMemb ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+p2 <- fviz_cluster(
+  list(data = full_data, cluster = results_kam[[2]]$finalMemb ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+p3 <- fviz_cluster(
+  list(data = full_data, cluster = results_kam[[3]]$finalMemb ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+p4 <- fviz_cluster(
+  list(data = full_data, cluster = results_kam[[4]]$finalMemb ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+p5 <- fviz_cluster(
+  list(data = full_data, cluster = results_kam[[5]]$finalMemb ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+
+(p1|p2|p3)/
+  (p4|p5)
+```
+
+
+
+\newpage
+
+
+
+
+## K medoids with Gower distance
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+results_kmed <- lapply(2:6, function(k) fastkmed(gower_dist, ncluster = k))
+
+```
+
+
+```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+
+silhouette_index <- NA
+avg_silhouette <- vector()
+davies_bouldin <- vector()
+dunn_index <- vector()
+calinski_harabasz <- vector()
+
+for (i in 1:5){
+  labels <- as.integer(results_kmed[[i]]$cluster)
+  silhouette_index <- silhouette(labels, gower_dist)
+avg_silhouette[i] <- mean(silhouette_index[, 3])
+
+
+davies_bouldin[i] <- index.DB(
+ gower_dist, cl = labels)$DB
+
+dunn_index[i] <- clValid::dunn(
+ gower_dist, clust = labels
+)
+calinski_harabasz[i] <- fpc::calinhara(
+  x = gower_dist,
+  clustering = labels
+)
+  
+  
+}
+
+
+df <- data.frame("N_clusters"=2:6,
+                 "Silhoutte Score"=avg_silhouette,
+                 "Davies Bouldin"=davies_bouldin,
+                 "Dunn index"=dunn_index,
+                 "Calinski Harabasz"=calinski_harabasz)
+
+colnames(df) <- c("Number of clusters", "Silhoutte Score","Davies Bouldin","Dunn index","Calinski Harabasz")
+rownames(df) <- NULL
+kable(df,"html") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+
+p1 <- fviz_cluster(
+  list(data = full_data, cluster = results_kmed[[1]]$cluster ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+p2 <- fviz_cluster(
+  list(data = full_data, cluster = results_kmed[[2]]$cluster ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+p3 <- fviz_cluster(
+  list(data = full_data, cluster = results_kmed[[3]]$cluster ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+p4 <- fviz_cluster(
+  list(data = full_data, cluster = results_kmed[[4]]$cluster ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+p5 <- fviz_cluster(
+  list(data = full_data, cluster = results_kmed[[5]]$cluster ),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal()
+
+
+(p1|p2|p3)/
+  (p4|p5)
+
+```
+
+## Profiling
+
+
+
+### K-Prototypes
+
+#### Descriptiva
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data_full$Kproto <- as.factor(as.integer(results[[1]]$cluster) )
+covariates <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","PAECC","TIHIJ","PAENF","PAALC","PASUS","PASUS01","PASUS02","PASUS03","PASUS04","PASUS05","PASUS06","PACAU","studies","employed","tabaco","PAORG", "NSTOTAL", "HATOTAL", "RDTOTAL", "PSTOTAL", "SDTOTAL", "CTOTAL", "STTOTAL", "VALID", "Inicio", "evoluc", "PAAPRO", "PAANOS", "PAHIJ", "PAEDA","SOMATP" ,"OBSESP" ,"SENSIP" ,"DEPRESP" ,"ANSIEP" ,"HOSTILP" ,"FOBIAP" ,"PARANP" ,"PSICOTP" ,"GSI" ,"PSDI" ,"TOTESCCOMSEX" ,"INTSEX" ,"FALLCONTSEX")
+data_full |>
+  dplyr::select(Kproto, covariates) |>
+  tbl_summary(
+    type = list(all_continuous() ~ "continuous2",
+                all_dichotomous() ~ "categorical"),
+    statistic = all_continuous() ~ c(
+      "{mean} ({sd})",
+      "{median} ({p25}, {p75})",
+      "{min}, {max}"
+    ),
+    by = Kproto,
+    missing_text = "Missing"
+  ) |> add_overall() |>
+  add_p(test=list(all_continuous() ~ "wilcox.test", all_categorical() ~ "chisq.test")) |>
+  bold_labels() |>
+  bold_p() |>
+  as_gt() |>
+  tab_style(
+    style = cell_borders(sides = "bottom", weight = px(1)),
+    locations = cells_body(rows = row_type == "label")
+  ) 
+df <- as.data.frame(data_full |>
+  dplyr::select(Kproto, covariates) |>
+  tbl_summary(
+    type = list(all_continuous() ~ "continuous2",
+                all_dichotomous() ~ "categorical"),
+    statistic = all_continuous() ~ c(
+      "{mean} ({sd})",
+      "{median} ({p25}, {p75})",
+      "{min}, {max}"
+    ),
+    by = Kproto,
+    missing_text = "Missing"
+  ) |> add_overall() |>
+  add_p(test=list(all_continuous() ~ "wilcox.test", all_categorical() ~ "chisq.test")) )
+```
+
+
+
+
+##### Conducta
+
+```{r echo=FALSE, fig.height=8, fig.width=12, message=FALSE, warning=FALSE}
+
+pt <- prop.table(table(data_full$studies,data_full$Kproto),margin=2)
+n <- table(data_full$studies,data_full$Kproto)
+
+df <- data.frame("Orientacion"=rep(rownames(pt),ncol(pt)),"Cluster"=c(rep(colnames(pt)[1],nrow(pt)),rep(colnames(pt)[2],nrow(pt))),"perc"=as.vector(pt)*100,n=as.vector(n))
+
+df$perc[df$perc==0] <- NA
+p <- round(chisq.test(table(data_full$studies,data_full$Kproto))$p.value,3)
+
+
+ggplot(df, aes(fill=Orientacion, y=perc, x=Cluster)) + 
+    geom_bar(position="stack", stat="identity",width=0.7) +
+    scale_fill_viridis(discrete = T,begin=0.05,end=1) +
+    theme_minimal() +
+    ylab("Percentage of patients (%)")  + xlab("") + theme(legend.title = element_blank(),axis.text = element_text(face="bold",size=12),legend.text = element_text(face="bold",size=10),axis.title.y= element_text(face="bold",size=15)) +
+  geom_text(aes(label = paste0(round(perc),"%")), 
+            position = position_stack(vjust = 0.5), size = 4.5,fontface="bold") + scale_y_continuous(limits = c(-2, 110), breaks = seq(0, 100, by = 10)) +   geom_label(    label= paste0("p = ",p),     x=1.5,    y=105,label.size = NA,fill="white", fontface = "bold",size=5  )
+
+```
+
+
+##### Somatizacion
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Kproto", "SDTOTAL", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+
+##### Obsesión Compulsion
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Kproto", "OBSESP", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+##### Depresion
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Kproto", "DEPRESP", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+##### Ansiedad
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Kproto", "ANSIEP", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+##### Fobia
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Kproto", "FOBIAP", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+
+##### Psicoticismo
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Kproto", "PSICOTP", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+
+##### Severidad global
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Kproto", "GSI", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+
+
+##### PSDI
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Kproto", "PSDI", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+
+##### Add Sexual: Total
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Kproto", "TOTESCCOMSEX", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+
+##### Add Sexual: Interferencia
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Kproto", "INTSEX", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+
+
+
+### Dropout
+
+
+
+
+##### Yes vs No
+
+
+```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+data_full$ABAND2 <- ifelse(data_full$ABAND == "Si",1,0)
+data_full$SESABAN2 <- data_full$SESABAN
+data_full$SESABAN2[data$ABAND == "No"] <- 12
+data_full$y <- Surv(data_full$SESABAN2,data_full$ABAND2)
+odds.ratio(glm(ABAND2 ~ Kproto,data_full,family="binomial"))
+
+```
+
+##### Survival (los no abandonados a 12 sesiones)
+
+
+```{r echo=FALSE, fig.height=8, fig.width=11, message=FALSE, warning=FALSE}
+
+
+
+surv1 <- survfit(y~Kproto,data=data_full)
+
+t1 <- tbl_survfit(surv1,times=c(6,12,24),label=list(Kproto ~ "Cluster"),label_header = "**{time} Months**")
+t2 <- tbl_survfit(surv1,probs=0.5,label=list(Kproto ~ "Cluster"),label_header = "**Median (months 95%CI)**")
+t3 <- coxph(y ~ Kproto, data = data_full) %>%
+  tbl_regression(exponentiate = TRUE,label=list(Kproto ~ "Cluster"))
+tbl_merge(list(t1,t2,t3), tab_spanner = FALSE)
+
+mypal <- pal_jco("default")(10)[c(1,2,3,4,5,6,7,8)]
+
+ggsurvplot(surv1 , data = data_full,
+           title = " ",
+           pval = F, pval.method = F,    # Add p-value &  method name
+           palette = mypal,
+           risk.table = T,                  # Add No at risk table
+           cumevents = F,                   # Add cumulative No of events table
+           tables.height = 0.15,               # Specify tables height
+           tables.theme = theme_cleantable(),  # Clean theme for tables
+           tables.y.text = F,
+           conf.int = F, # Hide tables y axis text
+           xlab= "Sesiones",
+           ylab="Abandonamiento",
+           pval.size=4.5,
+           risk.table.title="N. at risk",
+           risk.table.fontsize=5.5,
+           font.y=c(22),
+           font.tickslab=20,
+           size=2,
+           font.x=c(20),
+           linetype=c(1,1,1,1,1,1,1,1,1),
+           censor.size=6,
+           # legend=c(0.8,1),           # Change legend titles
+           # legend.labs = nam,  # Change legend labels
+           # legend.title="",
+           # font.legend=c(14,"bold"),
+           break.time.by=1,
+          surv.median.line="hv",
+          xlim=c(0,12))
+
+
+
+
+
+```
+
+
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2 <- function (data, x, y, no_violin = FALSE, compare = FALSE, p_adj = "fdr", 
+          brackets_pos = 1.05, ...) 
+{
+  rlang::check_installed(c("ggpubr", "gghalves"))
+  if (!is.factor(data[[x]])) {
+    data[[x]] <- factor(data[[x]])
+  }
+  if (no_violin) {
+    p <- ggplot2::ggplot(data, ggplot2::aes(.data[[x]], .data[[y]])) + 
+      ggplot2::geom_boxplot(outliers = FALSE) + ggplot2::geom_jitter(alpha = 0.5, 
+                                                                     width = 0.2)
+  }
+  else {
+    p <- ggplot2::ggplot(data, ggplot2::aes(.data[[x]], .data[[y]])) + 
+      gghalves::geom_half_violin(side = "r") + ggplot2::geom_boxplot(width = 0.1, 
+                                                                     outliers = FALSE,fill=c("#5B88A8", "#48B080", "#D1CC8A")) + gghalves::geom_half_point(side = "l", 
+                                                                                                                                  alpha = 0.5) + theme_classic() + scale_fill_manual(c("#5B88A8", "#48B080", "#D1CC8A"))
+  }
+  if (compare) {
+    stats <- ggpubr::compare_means(formula(glue::glue("{y} ~ {x}")), 
+                                   data = data, p.adjust.method = p_adj)
+    y_pos <- max(dplyr::pull(data, .data[[y]]), na.rm = TRUE) * 
+      brackets_pos
+    p <- p + ggpubr::geom_bracket(data = stats, ggplot2::aes(xmin = .data[["group1"]], 
+                                                             xmax = .data[["group2"]], label = gtsummary::style_pvalue(.data[["p.adj"]])), 
+                                  y.position = y_pos, ...)
+  }
+  data <- dplyr::select(data, .data[[x]], .data[[y]])
+  attr(p, "data") <- data
+  p
+}
+
+covariates <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","PAECC","TIHIJ","PASUS","studies","employed","tabaco","PAORG2", "NSTOTAL", "HATOTAL", "RDTOTAL", "PSTOTAL", "SDTOTAL", "CTOTAL", "STTOTAL", "Inicio", "PAAPRO", "PAANOS")
+
+
+
+set.seed(123)
+
+
+
+
+
+```
+
+
+# Clusters TCI-R
+
+A continuación se realizarán tres métodos distintos para crear los clusters y se medirán distintas métricas para evaluar su desempeño.
+
+## K-means
+
+```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+
+set.seed(123)
+kmeans_res <- kmeans(scale(data[,covariates_TCI]), centers = 2)
+data$cluster_num <- kmeans_res$cluster
+p1 <- fviz_cluster(kmeans_res, data = data[,covariates_TCI], geom = "point", stand = TRUE) +
+  theme_minimal()
+kmeans_res <- kmeans(scale(data[,covariates_TCI]), centers = 3)
+data$cluster_num <- kmeans_res$cluster
+p2 <- fviz_cluster(kmeans_res, data = data[,covariates_TCI], geom = "point", stand = TRUE) +
+  theme_minimal()
+kmeans_res <- kmeans(scale(data[,covariates_TCI]), centers = 4)
+data$cluster_num <- kmeans_res$cluster
+p3 <- fviz_cluster(kmeans_res, data = data[,covariates_TCI], geom = "point", stand = TRUE) +
+  theme_minimal()  
+kmeans_res <- kmeans(scale(data[,covariates_TCI]), centers = 5)
+data$cluster_num <- kmeans_res$cluster
+p4 <- fviz_cluster(kmeans_res, data = data[,covariates_TCI], geom = "point", stand = TRUE) +
+  theme_minimal() 
+kmeans_res <- kmeans(scale(data[,covariates_TCI]), centers = 6)
+data$cluster_num <- kmeans_res$cluster
+p5 <- fviz_cluster(kmeans_res, data = data[,covariates_TCI], geom = "point", stand = TRUE) +
+  theme_minimal() 
+
+
+
+
+
+silhouette_index <- NA
+avg_silhouette <- vector()
+davies_bouldin <- vector()
+dunn_index <- vector()
+calinski_harabasz <- vector()
+dist_matrix <- dist(scale(data[,covariates_TCI]))
+for (k in 2:6) {
+  # K-means clustering
+  labels <- kmeans(scale(data[,covariates_TCI]), centers = k)$cluster
+  
+  silhouette_index <- silhouette(labels, dist_matrix)
+avg_silhouette[k-1] <- mean(silhouette_index[, 3])
+
+
+davies_bouldin[k-1] <- index.DB(
+ dist_matrix, cl = labels)$DB
+
+dunn_index[k-1] <- clValid::dunn(
+ dist_matrix, clust = labels
+)
+calinski_harabasz[k-1] <- fpc::calinhara(
+  x = dist_matrix,
+  clustering = labels
+)
+  
+  
+}
+
+
+df <- data.frame("N_clusters"=2:6,
+                 "Silhoutte Score"=avg_silhouette,
+                 "Davies Bouldin"=davies_bouldin,
+                 "Dunn index"=dunn_index,
+                 "Calinski Harabasz"=calinski_harabasz)
+
+colnames(df) <- c("Number of clusters", "Silhoutte Score","Davies Bouldin","Dunn index","Calinski Harabasz")
+rownames(df) <- NULL
+kable(df,"html") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+
+(p1|p2|p3)/
+  (p4|p5)
+```
+
+
+## Hierarchical
+
+```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+
+
+set.seed(123)
+pca_res <- prcomp(scale(data[,covariates_TCI]), scale. = TRUE)
+pca_data <- data.frame(pca_res$x[, 1:2])
+
+dist_matrix <- dist(scale(data[,covariates_TCI]), method = "euclidean")
+
+hclust_res <- hclust(dist_matrix, method = "ward.D2")
+
+clusters_hc_1 <- cutree(hclust_res, k = 2)  # Cambia `k` según tu interés
+clusters_hc_2 <- cutree(hclust_res, k = 3) 
+clusters_hc_3 <- cutree(hclust_res, k = 4) 
+clusters_hc_4 <- cutree(hclust_res, k = 5) 
+clusters_hc_5 <- cutree(hclust_res, k = 6) 
+
+
+
+
+
+silhouette_index <- NA
+avg_silhouette <- vector()
+davies_bouldin <- vector()
+dunn_index <- vector()
+calinski_harabasz <- vector()
+dist_matrix <- dist(scale(data[,covariates_TCI]))
+for (k in 2:6) {
+  # K-means clustering
+  labels <- cutree(hclust_res, k = k)
+  
+  silhouette_index <- silhouette(labels, dist_matrix)
+avg_silhouette[k-1] <- mean(silhouette_index[, 3])
+
+
+davies_bouldin[k-1] <- index.DB(
+ dist_matrix, cl = labels)$DB
+
+dunn_index[k-1] <- clValid::dunn(
+ dist_matrix, clust = labels
+)
+calinski_harabasz[k-1] <- fpc::calinhara(
+  x = dist_matrix,
+  clustering = labels
+)
+  
+  
+}
+
+
+df <- data.frame("N_clusters"=2:6,
+                 "Silhoutte Score"=avg_silhouette,
+                 "Davies Bouldin"=davies_bouldin,
+                 "Dunn index"=dunn_index,
+                 "Calinski Harabasz"=calinski_harabasz)
+
+colnames(df) <- c("Number of clusters", "Silhoutte Score","Davies Bouldin","Dunn index","Calinski Harabasz")
+rownames(df) <- NULL
+kable(df,"html") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+plot(hclust_res)
+
+# Visualizar los clusters en PCA
+p1 <- fviz_cluster(
+  list(data = pca_data[, 1:2], cluster = clusters_hc_1),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal() +
+  labs(title = "Clustering Jerárquico Representado en PCA")
+
+p2 <- fviz_cluster(
+  list(data = pca_data[, 1:2], cluster = clusters_hc_2),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal() +
+  labs(title = "Clustering Jerárquico Representado en PCA")
+
+
+p3 <- fviz_cluster(
+  list(data = pca_data[, 1:2], cluster = clusters_hc_3),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal() +
+  labs(title = "Clustering Jerárquico Representado en PCA")
+
+
+p4 <- fviz_cluster(
+  list(data = pca_data[, 1:2], cluster = clusters_hc_4),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal() +
+  labs(title = "Clustering Jerárquico Representado en PCA")
+
+
+p5 <- fviz_cluster(
+  list(data = pca_data[, 1:2], cluster = clusters_hc_5),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal() +
+  labs(title = "Clustering Jerárquico Representado en PCA")
+
+(p1|p2|p3)/
+  (p4|p5)
+```
+
+## Gaussian mixture models
+
+```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+
+mclust_1 <- Mclust(scale(data[,covariates_TCI]),G=2)$classification
+
+mclust_2 <- Mclust(scale(data[,covariates_TCI]),G=3)$classification
+
+mclust_3 <- Mclust(scale(data[,covariates_TCI]),G=4)$classification
+
+mclust_4 <- Mclust(scale(data[,covariates_TCI]),G=5)$classification
+
+mclust_5 <- Mclust(scale(data[,covariates_TCI]),G=6)$classification
+
+
+
+
+
+
+
+
+silhouette_index <- NA
+avg_silhouette <- vector()
+davies_bouldin <- vector()
+dunn_index <- vector()
+calinski_harabasz <- vector()
+dist_matrix <- dist(scale(data[,covariates_TCI]))
+for (k in 2:6) {
+  # K-means clustering
+  labels <-  Mclust(scale(data[,covariates_TCI]),G=k)$classification
+  
+  silhouette_index <- silhouette(labels, dist_matrix)
+avg_silhouette[k-1] <- mean(silhouette_index[, 3])
+
+
+davies_bouldin[k-1] <- index.DB(
+ dist_matrix, cl = labels)$DB
+
+dunn_index[k-1] <- clValid::dunn(
+ dist_matrix, clust = labels
+)
+calinski_harabasz[k-1] <- fpc::calinhara(
+  x = dist_matrix,
+  clustering = labels
+)
+  
+  
+}
+
+
+df <- data.frame("N_clusters"=2:6,
+                 "Silhoutte Score"=avg_silhouette,
+                 "Davies Bouldin"=davies_bouldin,
+                 "Dunn index"=dunn_index,
+                 "Calinski Harabasz"=calinski_harabasz)
+
+colnames(df) <- c("Number of clusters", "Silhoutte Score","Davies Bouldin","Dunn index","Calinski Harabasz")
+rownames(df) <- NULL
+kable(df,"html") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+
+# Visualizar los clusters en PCA
+p1 <- fviz_cluster(
+  list(data = pca_data[, 1:2], cluster = mclust_1),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal() +
+  labs(title = "Clustering Jerárquico Representado en PCA")
+
+p2 <- fviz_cluster(
+  list(data = pca_data[, 1:2], cluster = mclust_2),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal() +
+  labs(title = "Clustering Jerárquico Representado en PCA")
+
+
+p3 <- fviz_cluster(
+  list(data = pca_data[, 1:2], cluster = mclust_3),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal() +
+  labs(title = "Clustering Jerárquico Representado en PCA")
+
+
+p4 <- fviz_cluster(
+  list(data = pca_data[, 1:2], cluster = mclust_4),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal() +
+  labs(title = "Clustering Jerárquico Representado en PCA")
+
+
+p5 <- fviz_cluster(
+  list(data = pca_data[, 1:2], cluster = mclust_5),
+  geom = "point", stand = FALSE
+) +
+  theme_minimal() +
+  labs(title = "Clustering Jerárquico Representado en PCA")
+
+(p1|p2|p3)/
+  (p4|p5)
+```
+
+
+
+
+Tras realizar tres métodos de cluster podemos ver como el método hierarchical con 3 grupos es el que nos da mejores métricas.
+
+
+## Profiling
+
+Para poder crear un perfil de los 3 grupos se hará un analisis de diferencias y un posterior análisis de abandono.
+
+### Hierarchical (mejor método)
+
+#### Descriptiva
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+covariates <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","PAECC","TIHIJ","PAENF","PAALC","PASUS","PASUS01","PASUS02","PASUS03","PASUS04","PASUS05","PASUS06","PACAU","studies","employed","tabaco","PAORG", "NSTOTAL", "HATOTAL", "RDTOTAL", "PSTOTAL", "SDTOTAL", "CTOTAL", "STTOTAL", "VALID", "Inicio", "evoluc", "PAAPRO", "PAANOS", "PAHIJ", "PAEDA","SOMATP" ,"OBSESP" ,"SENSIP" ,"DEPRESP" ,"ANSIEP" ,"HOSTILP" ,"FOBIAP" ,"PARANP" ,"PSICOTP" ,"GSI" ,"PSDI" ,"TOTESCCOMSEX" ,"INTSEX" ,"FALLCONTSEX")
+data_full$Cluster_hierarchical <- as.factor(clusters_hc_2)
+data_full$Kproto <- as.factor(as.integer(results[[1]]$cluster) )
+
+
+data_full |>
+  dplyr::select(Cluster_hierarchical, covariates) |>
+  tbl_summary(
+    type = list(all_continuous() ~ "continuous2",
+                all_dichotomous() ~ "categorical"),
+    statistic = all_continuous() ~ c(
+      "{mean} ({sd})",
+      "{median} ({p25}, {p75})",
+      "{min}, {max}"
+    ),
+    by = Cluster_hierarchical,
+    missing_text = "Missing"
+  ) |> add_overall() |>
+  add_p(test=list(all_continuous() ~ "kruskal.test", all_categorical() ~ "chisq.test")) |>
+  bold_labels() |>
+  bold_p() |>
+  as_gt() |>
+  tab_style(
+    style = cell_borders(sides = "bottom", weight = px(1)),
+    locations = cells_body(rows = row_type == "label")
+  ) 
+
+```
+
+
+
+#### plots
+
+
+##### Orientacion sexual
+
+```{r echo=FALSE, fig.height=8, fig.width=12, message=FALSE, warning=FALSE}
+
+pt <- prop.table(table(data_full$ORSEX,data_full$Cluster_hierarchical),margin=2)
+n <- table(data_full$ORSEX,data_full$Cluster_hierarchical)
+
+df <- data.frame("Orientacion"=rep(rownames(pt),ncol(pt)),"Cluster"=c(rep(colnames(pt)[1],nrow(pt)),rep(colnames(pt)[2],nrow(pt)),rep(colnames(pt)[3],nrow(pt))),"perc"=as.vector(pt)*100,n=as.vector(n))
+
+df$perc[df$perc==0] <- NA
+p <- round(chisq.test(table(data_full$ORSEX,data_full$Cluster_hierarchical))$p.value,3)
+
+
+ggplot(df, aes(fill=Orientacion, y=perc, x=Cluster)) + 
+    geom_bar(position="stack", stat="identity",width=0.7) +
+    scale_fill_viridis(discrete = T,begin=0.3,end=0.7) +
+    theme_minimal() +
+    ylab("Percentage of patients (%)")  + xlab("") + theme(legend.title = element_blank(),axis.text = element_text(face="bold",size=12),legend.text = element_text(face="bold",size=10),axis.title.y= element_text(face="bold",size=15)) +
+  geom_text(aes(label = paste0(round(perc),"%")), 
+            position = position_stack(vjust = 0.5), size = 4.5,fontface="bold") + scale_y_continuous(limits = c(-2, 110), breaks = seq(0, 100, by = 10)) +   geom_label(    label= paste0("p = ",p),     x=2,    y=105,label.size = NA,fill="white", fontface = "bold",size=5  )
+
+```
+
+
+##### Conducta
+
+```{r echo=FALSE, fig.height=8, fig.width=12, message=FALSE, warning=FALSE}
+
+pt <- prop.table(table(data_full$CONDUCTA,data_full$Cluster_hierarchical),margin=2)
+n <- table(data_full$CONDUCTA,data_full$Cluster_hierarchical)
+
+df <- data.frame("Orientacion"=rep(rownames(pt),ncol(pt)),"Cluster"=c(rep(colnames(pt)[1],nrow(pt)),rep(colnames(pt)[2],nrow(pt)),rep(colnames(pt)[3],nrow(pt))),"perc"=as.vector(pt)*100,n=as.vector(n))
+
+df$perc[df$perc==0] <- NA
+p <- round(chisq.test(table(data_full$CONDUCTA,data_full$Cluster_hierarchical))$p.value,3)
+
+
+ggplot(df, aes(fill=Orientacion, y=perc, x=Cluster)) + 
+    geom_bar(position="stack", stat="identity",width=0.7) +
+    scale_fill_viridis(discrete = T,begin=0.05,end=1) +
+    theme_minimal() +
+    ylab("Percentage of patients (%)")  + xlab("") + theme(legend.title = element_blank(),axis.text = element_text(face="bold",size=12),legend.text = element_text(face="bold",size=10),axis.title.y= element_text(face="bold",size=15)) +
+  geom_text(aes(label = paste0(round(perc),"%")), 
+            position = position_stack(vjust = 0.5), size = 4.5,fontface="bold") + scale_y_continuous(limits = c(-2, 110), breaks = seq(0, 100, by = 10)) +   geom_label(    label= paste0("p = ",p),     x=2,    y=105,label.size = NA,fill="white", fontface = "bold",size=5  )
+
+```
+
+
+##### Novelty seeking
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Cluster_hierarchical", "NSTOTAL", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+
+##### Harm avoidance
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Cluster_hierarchical", "HATOTAL", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+
+```
+
+
+##### Depresion
+
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Cluster_hierarchical", "DEPRESP", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+##### Ansiedad
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+
+
+ody_plot_violindotbox2(
+  data_full, "Cluster_hierarchical", "ANSIEP", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+
+
+```
+
+##### PSDI
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Cluster_hierarchical", "PSDI", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+
+##### Psicoticismo
+
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+
+ody_plot_violindotbox2(
+  data_full, "Cluster_hierarchical", "PSICOTP", compare = TRUE,
+  step.increase = 0.05, tip.length = 0
+) |>
+  ody_add_tbl_violindotbox()
+
+
+```
+
+
+## Abandonamiento segun cluster
+
+### Hierarchical
+
+#### Si vs No (logistic model)
+
+```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+data_full$ABAND2 <- ifelse(data_full$ABAND == "Si",1,0)
+data_full$SESABAN2 <- data_full$SESABAN
+data_full$SESABAN2[data$ABAND == "No"] <- 12
+data_full$y <- Surv(data_full$SESABAN2,data_full$ABAND2)
+
+round(odds.ratio(glm(ABAND2 ~ Cluster_hierarchical,data_full,family="binomial")),3)
+
+```
+
+#### Survival 
+
+
+```{r echo=FALSE, fig.height=8, fig.width=11, message=FALSE, warning=FALSE}
+
+
+
+surv1 <- survfit(y~Cluster_hierarchical,data=data_full)
+
+t1 <- tbl_survfit(surv1,times=c(3,6,9),label=list(Cluster_hierarchical ~ "Cluster"),label_header = "**Sesion {time}**")
+t2 <- tbl_survfit(surv1,probs=0.5,label=list(Cluster_hierarchical ~ "Cluster"),label_header = "**Median (95%CI)**")
+t3 <- coxph(y ~ Cluster_hierarchical, data = data_full) %>%
+  tbl_regression(exponentiate = TRUE,label=list(Cluster_hierarchical ~ "Cluster"))
+tbl_merge(list(t1,t2,t3), tab_spanner = FALSE)
+
+mypal <- pal_jco("default")(10)[c(1,2,3,4,5,6,7,8)]
+
+ggsurvplot(surv1 , data = data_full,
+           title = " ",
+           pval = F, pval.method = F,    # Add p-value &  method name
+           palette = mypal,
+           risk.table = T,                  # Add No at risk table
+           cumevents = F,                   # Add cumulative No of events table
+           tables.height = 0.15,               # Specify tables height
+           tables.theme = theme_cleantable(),  # Clean theme for tables
+           tables.y.text = F,
+           conf.int = F, # Hide tables y axis text
+           xlab= "Sessions",
+           ylab="Drop-out rate",
+           pval.size=4.5,
+           risk.table.title="N. at risk",
+           risk.table.fontsize=5.5,
+           font.y=c(22),
+           font.tickslab=20,
+           size=2,
+           font.x=c(20),
+           linetype=c(1,1,1,1,1,1,1,1,1),
+           censor.size=6,
+           # legend=c(0.8,1),           # Change legend titles
+           # legend.labs = nam,  # Change legend labels
+           # legend.title="",
+           # font.legend=c(14,"bold"),
+           break.time.by=1,
+          surv.median.line="hv",
+          xlim=c(0,12))
+
+
+
+
+
+```
+
+
+
+# Appendix
+
+ ```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE} 
+ ```
