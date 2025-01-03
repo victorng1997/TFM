@@ -1,0 +1,1 @@
+This repository contains the code and output of the analysis conducted for the Master's Thesis in Bioinformatics and Biostatistics at UOC. The study is based on a cluster analysis of 97 patients with CSB treated at a Spanish psychological center.
