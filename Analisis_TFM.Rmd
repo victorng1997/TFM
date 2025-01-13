@@ -19,6 +19,8 @@ header-includes:
 
 
 ```{r include=FALSE}
+# Se crea la función que se utilizará para hacer los violin plot.
+
 ody_plot_violindotbox2 <- function (data, x, y, no_violin = FALSE, compare = FALSE, p_adj = "fdr", 
           brackets_pos = 1.05, ...) 
 {
@@ -53,6 +55,8 @@ ody_plot_violindotbox2 <- function (data, x, y, no_violin = FALSE, compare = FAL
 ```
 
 ```{r include=FALSE}
+
+## Se cargan los paquetes que se vayan a necesitar
 if (!(require(knitr))){
   install.packages("knitr")
 }
@@ -153,27 +157,30 @@ if (!(require(DataExplorer))){
   install.packages("DataExplorer")
 }
 
-
+# Seleccionamos el directorio de trabajo
 setwd("C:/Users/victornavarro/Desktop/TFM")
 
+# Definimos una función que usaremos
 `%notin%` <- Negate(`%in%`)
 
+# Leemos la base de datos
 data <- read_sav("Sex clust var 131124 SD ECS SCL TCI_DEF N97.sav")
 
-
+# Seleccionamos las variables categóricas para luego trabajar con ellas.
 variables_cat <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","PANOC","PAECC","TIHIJ","PAENF","PAALC","PASUS","PASUS01","PASUS02","PASUS03","PASUS04","PASUS05","PASUS06","PACAU","studies","employed","tabaco")
 
 original_labels <- var_label(data[,variables_cat])
 data$PAORG2 <- factor(ifelse(data$PAORG == 1, "1",ifelse(data$PAORG > 2,">2","2")))
 
 data[,variables_cat] <- sapply(data[,variables_cat],to_factor)
-#DataExplorer::create_report(data)
-
 
 var_label(data[,variables_cat]) <- original_labels
 
+# Creamos un vector con todas las variables
+
 covariates <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","PAECC","TIHIJ","PAENF","PAALC","PASUS","PASUS01","PASUS02","PASUS03","PASUS04","PASUS05","PASUS06","PACAU","studies","employed","tabaco","PAORG", "NSTOTAL", "HATOTAL", "RDTOTAL", "PSTOTAL", "SDTOTAL", "CTOTAL", "STTOTAL", "VALID", "Inicio", "evoluc", "PAAPRO", "PAANOS", "PAHIJ", "PAEDA")
 
+# Guardamos la base de datos original en otro objeto
 data_full <- data
 ```
 
@@ -186,6 +193,8 @@ data_full <- data
 
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Creamos una tabla descriptiva de las variables a usar
 covariates <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","PAECC","TIHIJ","PAENF","PAALC","PASUS","PASUS01","PASUS02","PASUS03","PASUS04","PASUS05","PASUS06","PACAU","studies","employed","tabaco","PAORG", "NSTOTAL", "HATOTAL", "RDTOTAL", "PSTOTAL", "SDTOTAL", "CTOTAL", "STTOTAL", "VALID", "Inicio", "evoluc", "PAAPRO", "PAANOS", "PAHIJ", "PAEDA")
 
 data |>
@@ -227,7 +236,9 @@ covariates <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","TIHIJ","PASUS","
 
 covariates_TCI <- c( "NSTOTAL", "HATOTAL", "RDTOTAL", "PSTOTAL", "SDTOTAL", "CTOTAL", "STTOTAL")
 
-set.seed(123)
+set.seed(123) # Establecems una semilla para obtener los mismos valores en cada iteración
+
+# Creamos vectores con el numero de columna para los distintos tipos de variables
 
 indices_binary <- which(sapply(data[,covariates], function(x) {
   length(unique(x)) == 2 && (is.numeric(x) || is.factor(x))
@@ -239,11 +250,14 @@ indices_categorical <- which(sapply(data[,covariates], function(x) {
 
 indices_numeric <- as.integer(which(sapply(data[,covariates], is.numeric)))
 
-data[,covariates[indices_numeric]] <- scale(data[,covariates[indices_numeric]])
 
 
-results <- lapply(2:6, function(k) kproto(data[,covariates], k = k))
+data[,covariates[indices_numeric]] <- scale(data[,covariates[indices_numeric]]) # Escalamos las variables numéricas del data fram
 
+
+results <- lapply(2:6, function(k) kproto(data[,covariates], k = k)) # Calculamos para cada k de 2 a 6 los valores de cluster del k-prototypes
+
+# Calculamos la distancia de huang, la cual se usa en el k-prototypes
 
 huang_dist <- kmed::distmix(data[,covariates],
               method="huang",
@@ -260,11 +274,13 @@ d <- as.data.frame(lapply(data[,covariates], function(x) if(is.factor(x)) as.num
 
 numerical_data <- dplyr::select_if(data[,covariates], is.numeric)
 categorical_data <- dplyr::select_if(data[,covariates], is.factor)
+
+# calculamos los valores del MCA para las variables categóricas del modo de datos mixtos
 mca_res <- MCA(categorical_data, graph = FALSE)
 mca_coords <- mca_res$ind$coord  # MCA coordinates
 full_data <- cbind(mca_coords, numerical_data)
 
-hopkins_stat1 <- clustertend::hopkins(d, n = nrow(data) - 1)
+# Calculamos el hopkins statistica para las variables numéricas tanto de las usadas en los métodos mixtos como de las de TCI-R
 hopkins_stat3 <- clustertend::hopkins(numerical_data, n = nrow(data) - 1)
 hopkins_stat2 <- clustertend::hopkins(scale(data[,covariates_TCI]), n = nrow(data) - 1)
 df <- data.frame("HB Mixed"=as.numeric(hopkins_stat3), "HB TCI-R"=as.numeric(hopkins_stat2))
@@ -280,7 +296,7 @@ kable(df,"html")%>%
 
 ```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
 
-
+# Calculamos para cada resultado de k de k-prototypes los distintos estadísticos de performance
 
 silhouette_index <- NA
 avg_silhouette <- vector()
@@ -322,7 +338,7 @@ kable(df,"html") %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 
 
-
+# Para cada k se dibujan los valores de PCA con los cluster obtenidos con k-prototypes
 
 p1 <- fviz_cluster(
   list(data = full_data, cluster = results[[1]]$cluster ),
@@ -376,12 +392,13 @@ p5 <- fviz_cluster(
 
 
 
-
 catDf <- data.frame(apply(data[,covariates[c(indices_binary,indices_categorical)]], 2, factor), stringsAsFactors = TRUE)
 conDf <- data.frame(data[,covariates[indices_numeric]], stringsAsFactors = TRUE)
 
-gower_dist <- daisy(data[,covariates],"gower")
+gower_dist <- daisy(data[,covariates],"gower") # Se calcula la distancia de gower para usar en los proximos estadísticos ya que kamila no usa una distancia como tal.
 
+
+# Se calcula para k de 2 a 6 los resultados del metodo de cluster kamila
 results_kam <- lapply(2:6, function(k) kamila(
 conVar=data[,covariates[indices_numeric]],
 catFactor=data[,covariates[c(indices_binary,indices_categorical)]],
@@ -392,6 +409,9 @@ numInit=100))
 
 
 ```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+
+
+# Calculamos para cada resultado de k de kamila los distintos estadísticos de performance usando la distancia de gower
 
 silhouette_index <- NA
 avg_silhouette <- vector()
@@ -431,7 +451,7 @@ rownames(df) <- NULL
 kable(df,"html") %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 
-
+# Para cada k se dibujan los valores de PCA con los cluster obtenidos con kamila
 p1 <- fviz_cluster(
   list(data = full_data, cluster = results_kam[[1]]$finalMemb ),
   geom = "point", stand = FALSE
@@ -478,13 +498,16 @@ p5 <- fviz_cluster(
 
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
-
+# Se calcula para cada k de 2 a 6 los resultados de PAM con ditancia de gower
 results_kmed <- lapply(2:6, function(k) fastkmed(gower_dist, ncluster = k))
 
 ```
 
 
 ```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+
+# Calculamos para cada resultado de k de k-medoids los distintos estadísticos de performance usando la distancia de gower
+
 
 silhouette_index <- NA
 avg_silhouette <- vector()
@@ -524,6 +547,7 @@ rownames(df) <- NULL
 kable(df,"html") %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 
+# Para cada k se dibujan los valores de PCA con los cluster obtenidos con k-medoids
 
 p1 <- fviz_cluster(
   list(data = full_data, cluster = results_kmed[[1]]$cluster ),
@@ -569,6 +593,9 @@ p5 <- fviz_cluster(
 
 #### Descriptiva
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# El método de cluster que mejor ha funcionado se usa para crear una tabla descriptiva de distintas variables para ver si hay diferencias entre los clusters.
+
 data_full$Kproto <- as.factor(as.integer(results[[1]]$cluster) )
 covariates <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","PAECC","TIHIJ","PAENF","PAALC","PASUS","PASUS01","PASUS02","PASUS03","PASUS04","PASUS05","PASUS06","PACAU","studies","employed","tabaco","PAORG", "NSTOTAL", "HATOTAL", "RDTOTAL", "PSTOTAL", "SDTOTAL", "CTOTAL", "STTOTAL", "VALID", "Inicio", "evoluc", "PAAPRO", "PAANOS", "PAHIJ", "PAEDA","SOMATP" ,"OBSESP" ,"SENSIP" ,"DEPRESP" ,"ANSIEP" ,"HOSTILP" ,"FOBIAP" ,"PARANP" ,"PSICOTP" ,"GSI" ,"PSDI" ,"TOTESCCOMSEX" ,"INTSEX" ,"FALLCONTSEX")
 data_full |>
@@ -790,10 +817,11 @@ ody_plot_violindotbox2(
 
 
 
-##### Yes vs No
+#### Yes vs No
 
 
 ```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+# Se ajusta un modelo logístico para ver si hay diferencias significativas (SIN CONTAR EL TIEMPO) entre el dropout de los distintos clusters.
 data_full$ABAND2 <- ifelse(data_full$ABAND == "Si",1,0)
 data_full$SESABAN2 <- data_full$SESABAN
 data_full$SESABAN2[data$ABAND == "No"] <- 12
@@ -802,11 +830,11 @@ odds.ratio(glm(ABAND2 ~ Kproto,data_full,family="binomial"))
 
 ```
 
-##### Survival (los no abandonados a 12 sesiones)
+#### Survival 
 
 
 ```{r echo=FALSE, fig.height=8, fig.width=11, message=FALSE, warning=FALSE}
-
+# Se ajusta un modelo supervivencia para ver si hay diferencias significativas entre el dropout de los distintos clusters.
 
 
 surv1 <- survfit(y~Kproto,data=data_full)
@@ -859,6 +887,7 @@ ggsurvplot(surv1 , data = data_full,
 
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Se cambia ligeramente la funcion de los violin plot para ajustarse a 3 grupos
 
 ody_plot_violindotbox2 <- function (data, x, y, no_violin = FALSE, compare = FALSE, p_adj = "fdr", 
           brackets_pos = 1.05, ...) 
@@ -892,6 +921,8 @@ ody_plot_violindotbox2 <- function (data, x, y, no_violin = FALSE, compare = FAL
   p
 }
 
+# Se vuelven a ajustar las primeras variables y la semilla 
+
 covariates <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","PAECC","TIHIJ","PASUS","studies","employed","tabaco","PAORG2", "NSTOTAL", "HATOTAL", "RDTOTAL", "PSTOTAL", "SDTOTAL", "CTOTAL", "STTOTAL", "Inicio", "PAAPRO", "PAANOS")
 
 
@@ -907,13 +938,13 @@ set.seed(123)
 
 # Clusters TCI-R
 
-A continuación se realizarán tres métodos distintos para crear los clusters y se medirán distintas métricas para evaluar su desempeño.
 
 ## K-means
 
 ```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
 
-set.seed(123)
+# Se ajusta un modelo k means para cada k de 2 a 6 y se muestran los resultados del PCA ajustando por los clusters
+
 kmeans_res <- kmeans(scale(data[,covariates_TCI]), centers = 2)
 data$cluster_num <- kmeans_res$cluster
 p1 <- fviz_cluster(kmeans_res, data = data[,covariates_TCI], geom = "point", stand = TRUE) +
@@ -938,6 +969,7 @@ p5 <- fviz_cluster(kmeans_res, data = data[,covariates_TCI], geom = "point", sta
 
 
 
+# Calculamos para cada resultado de k de k means los distintos estadísticos de performance usando la distancia euclidea
 
 silhouette_index <- NA
 avg_silhouette <- vector()
@@ -989,16 +1021,19 @@ kable(df,"html") %>%
 
 ```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
 
-
 set.seed(123)
+
+# Se calcula los valores de PCA de las variables de TCI-R
 pca_res <- prcomp(scale(data[,covariates_TCI]), scale. = TRUE)
 pca_data <- data.frame(pca_res$x[, 1:2])
 
+# Se calcula la ditancia euclidea
 dist_matrix <- dist(scale(data[,covariates_TCI]), method = "euclidean")
 
+# Se calcula mediante el clustering jerarquico con el método de ward los clusters para cada k de 2 a 6
 hclust_res <- hclust(dist_matrix, method = "ward.D2")
 
-clusters_hc_1 <- cutree(hclust_res, k = 2)  # Cambia `k` según tu interés
+clusters_hc_1 <- cutree(hclust_res, k = 2)  
 clusters_hc_2 <- cutree(hclust_res, k = 3) 
 clusters_hc_3 <- cutree(hclust_res, k = 4) 
 clusters_hc_4 <- cutree(hclust_res, k = 5) 
@@ -1007,6 +1042,7 @@ clusters_hc_5 <- cutree(hclust_res, k = 6)
 
 
 
+# Calculamos para cada resultado de k de clustering jerarquico los distintos estadísticos de performance usando la distancia euclidea
 
 silhouette_index <- NA
 avg_silhouette <- vector()
@@ -1048,7 +1084,7 @@ rownames(df) <- NULL
 kable(df,"html") %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 
-plot(hclust_res)
+plot(hclust_res) # Dendograma 
 
 # Visualizar los clusters en PCA
 p1 <- fviz_cluster(
@@ -1097,6 +1133,9 @@ p5 <- fviz_cluster(
 
 ```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
 
+
+# Se calcula mediante gaussian mixture models los clusters para cada k de 2 a 6
+
 mclust_1 <- Mclust(scale(data[,covariates_TCI]),G=2)$classification
 
 mclust_2 <- Mclust(scale(data[,covariates_TCI]),G=3)$classification
@@ -1114,6 +1153,8 @@ mclust_5 <- Mclust(scale(data[,covariates_TCI]),G=6)$classification
 
 
 
+
+# Calculamos para cada resultado de k de gaussian mixture models los distintos estadísticos de performance usando la distancia euclidea
 silhouette_index <- NA
 avg_silhouette <- vector()
 davies_bouldin <- vector()
@@ -1161,14 +1202,14 @@ p1 <- fviz_cluster(
   geom = "point", stand = FALSE
 ) +
   theme_minimal() +
-  labs(title = "Clustering Jerárquico Representado en PCA")
+  labs(title = "Gaussian Mixture models Representado en PCA")
 
 p2 <- fviz_cluster(
   list(data = pca_data[, 1:2], cluster = mclust_2),
   geom = "point", stand = FALSE
 ) +
   theme_minimal() +
-  labs(title = "Clustering Jerárquico Representado en PCA")
+  labs(title = "Gaussian Mixture models Representado en PCA")
 
 
 p3 <- fviz_cluster(
@@ -1176,7 +1217,7 @@ p3 <- fviz_cluster(
   geom = "point", stand = FALSE
 ) +
   theme_minimal() +
-  labs(title = "Clustering Jerárquico Representado en PCA")
+  labs(title = "Gaussian Mixture models Representado en PCA")
 
 
 p4 <- fviz_cluster(
@@ -1184,7 +1225,7 @@ p4 <- fviz_cluster(
   geom = "point", stand = FALSE
 ) +
   theme_minimal() +
-  labs(title = "Clustering Jerárquico Representado en PCA")
+  labs(title = "Gaussian Mixture models Representado en PCA")
 
 
 p5 <- fviz_cluster(
@@ -1192,7 +1233,7 @@ p5 <- fviz_cluster(
   geom = "point", stand = FALSE
 ) +
   theme_minimal() +
-  labs(title = "Clustering Jerárquico Representado en PCA")
+  labs(title = "Gaussian Mixture models Representado en PCA")
 
 (p1|p2|p3)/
   (p4|p5)
@@ -1200,22 +1241,18 @@ p5 <- fviz_cluster(
 
 
 
-
-Tras realizar tres métodos de cluster podemos ver como el método hierarchical con 3 grupos es el que nos da mejores métricas.
-
-
 ## Profiling
 
-Para poder crear un perfil de los 3 grupos se hará un analisis de diferencias y un posterior análisis de abandono.
 
-### Hierarchical (mejor método)
 
-#### Descriptiva
+### Descriptiva
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# El método de cluster que mejor ha funcionado (hierarchical clustering) se usa para crear una tabla descriptiva de distintas variables para ver si hay diferencias entre los clusters.
+
 covariates <- c("ORSEX","SEXONOFF","CONDUCTA", "ABAND","PATRT","PAECC","TIHIJ","PAENF","PAALC","PASUS","PASUS01","PASUS02","PASUS03","PASUS04","PASUS05","PASUS06","PACAU","studies","employed","tabaco","PAORG", "NSTOTAL", "HATOTAL", "RDTOTAL", "PSTOTAL", "SDTOTAL", "CTOTAL", "STTOTAL", "VALID", "Inicio", "evoluc", "PAAPRO", "PAANOS", "PAHIJ", "PAEDA","SOMATP" ,"OBSESP" ,"SENSIP" ,"DEPRESP" ,"ANSIEP" ,"HOSTILP" ,"FOBIAP" ,"PARANP" ,"PSICOTP" ,"GSI" ,"PSDI" ,"TOTESCCOMSEX" ,"INTSEX" ,"FALLCONTSEX")
 data_full$Cluster_hierarchical <- as.factor(clusters_hc_2)
-data_full$Kproto <- as.factor(as.integer(results[[1]]$cluster) )
 
 
 data_full |>
@@ -1390,13 +1427,13 @@ ody_plot_violindotbox2(
 ```
 
 
-## Abandonamiento segun cluster
+### Dropout
 
-### Hierarchical
 
 #### Si vs No (logistic model)
 
 ```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+# Se ajusta un modelo logístico para ver si hay diferencias significativas (SIN CONTAR EL TIEMPO) entre el dropout de los distintos clusters.
 data_full$ABAND2 <- ifelse(data_full$ABAND == "Si",1,0)
 data_full$SESABAN2 <- data_full$SESABAN
 data_full$SESABAN2[data$ABAND == "No"] <- 12
@@ -1412,6 +1449,7 @@ round(odds.ratio(glm(ABAND2 ~ Cluster_hierarchical,data_full,family="binomial"))
 ```{r echo=FALSE, fig.height=8, fig.width=11, message=FALSE, warning=FALSE}
 
 
+# Se ajusta un modelo supervivencia para ver si hay diferencias significativas entre el dropout de los distintos clusters.
 
 surv1 <- survfit(y~Cluster_hierarchical,data=data_full)
 
